@@ -1,0 +1,125 @@
+#!/bin/bash
+#
+# StatsD
+#
+# chkconfig: 12345 1 99
+# description: StatsD init.d
+
+### BEGIN INIT INFO
+# Provides:          myservice
+# Required-Start:    $remote_fs $syslog
+# Required-Stop:     $remote_fs $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Put a short description of the service here
+# Description:       Put a long description of the service here
+### END INIT INFO
+
+. /etc/rc.d/init.d/functions
+
+prog=statsd
+STATSDDIR=<%= node[:statsd][:conf_dir] %>
+statsd="/usr/local/bin/node <%= node[:statsd][:dir] %>/stats.js"
+LOG=/var/log/statsd.log
+ERRLOG=/var/log/statsderr.log
+CONFFILE=${STATSDDIR}/config.js
+pidfile=/var/run/statsd.pid
+lockfile=/var/lock/subsys/statsd
+RETVAL=0
+PID=0
+STOP_TIMEOUT=${STOP_TIMEOUT-10}
+
+start_process() {
+    ${statsd} ${CONFFILE} >> ${LOG} 2>> ${ERRLOG} &
+	        
+    if [ $? != 0 ]
+    then
+        echo "Process exited with non-zero value..." >> ${LOG}
+        failure "Process did not run successfully"
+    else
+        echo "Process started as expected..." >> ${LOG}
+        # Store PID
+        echo $! > ${pidfile}
+        echo $! >> ${LOG}
+
+        # Success
+        [ $RETVAL = 0 ] && success "statsd started"
+    fi
+}
+
+start() {
+	echo -n $"Starting $prog: "
+    echo "Starting process..." >> ${LOG}
+
+    # Do we have a pidfile
+	if [ -f ${pidfile} ]; then
+	    echo "There is a PID file present..." >> ${LOG}
+	
+	    PID=`cat ${pidfile}`
+	    
+	    # Does the PID in the pid file represent a running process
+	    if !(ps -p ${PID} > /dev/null)
+	    then
+	        echo "There is a PID file present but the related process is not present..." >> ${LOG}
+	        start_process
+	    else
+	        success "Process already started"
+	    fi
+	else
+	    echo "There is no PID file present..." >> ${LOG}
+		start_process
+	fi
+
+	echo
+	return $RETVAL
+}
+
+stop() {
+    echo -n $"Stopping $prog: "
+    echo "Stopping process..." >> ${LOG}
+    
+    if [ -f ${pidfile} ]; then
+        PID=`cat ${pidfile}`
+        
+        if (ps -p ${PID} > /dev/null)
+        then
+            echo "There is a PID file present with a valid related process..." >> ${LOG}
+        	killproc -p ${pidfile}
+        	RETVAL=$?
+        	echo
+        	[ $RETVAL = 0 ] && rm -f ${pidfile}
+        else
+            echo "Process no present"
+        fi
+    else
+        $RETVAL = 1
+    fi
+    
+    echo
+    return $RETVAL
+}
+
+# See how we were called.
+case "$1" in
+  start)
+    echo "Starting..." >> ${LOG}
+	start
+	;;
+  stop)
+	stop
+	;;
+  status)
+	status -p ${pidfile} ${prog}
+	RETVAL=$?
+	;;
+  restart)
+    echo "Restarting..." >> ${LOG}
+	stop
+	start
+	;;
+  *)
+	echo $"Usage: $prog {start|stop|restart|status}"
+	exit 1
+esac
+
+exit $RETVAL

@@ -1,11 +1,10 @@
 include_recipe "git"
 include_recipe "nodejs"
-include_recipe "runit"
 
 git node["statsd"]["dir"] do
   repository node["statsd"]["repository"]
   action :sync
-  notifies :restart, "runit_service[statsd]"
+  notifies :restart, "service[statsd]"
 end
 
 directory node["statsd"]["conf_dir"] do
@@ -22,8 +21,18 @@ unless Chef::Config[:solo]
   end
 end
 
+template "/etc/init.d/statsd" do
+    mode "755"
+    source "statsd.init.erb"
+end
+
+service "statsd" do
+    supports :status => true, :start => true, :stop => true, :restart => true
+    action [:enable, :start]
+end
+
 template "#{node["statsd"]["conf_dir"]}/config.js" do
-  mode "0644"
+  mode "644"
   source "config.js.erb"
   variables(
     :address            => node["statsd"]["address"],
@@ -44,20 +53,5 @@ template "#{node["statsd"]["conf_dir"]}/config.js" do
     :prefix_gauge       => node["statsd"]["graphite"]["prefix_gauge"],
     :prefix_set         => node["statsd"]["graphite"]["prefix_set"]
   )
-  notifies :restart, "runit_service[statsd]"
-end
-
-user node["statsd"]["username"] do
-  system true
-  shell "/bin/false"
-end
-
-runit_service "statsd" do
-  action [:enable, :start]
-  default_logger true
-  options ({
-    :user => node['statsd']['username'],
-    :statsd_dir => node['statsd']['dir'],
-    :conf_dir => node['statsd']['conf_dir']
-  })
+  notifies :restart, "service[statsd]"
 end

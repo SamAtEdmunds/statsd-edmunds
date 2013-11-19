@@ -2,11 +2,11 @@ maintainer        "Hector Castro"
 maintainer_email  "hectcastro@gmail.com"
 license           "Apache 2.0"
 description       "Installs and configures StatsD."
-version           "1.1.2"
+version           "1.2"
 recipe            "statsd", "Installs and configures StatsD"
 name              "statsd"
 
-%w{ git nodejs runit }.each do |d|
+%w{ git nodejs }.each do |d|
   depends d
 end
 
